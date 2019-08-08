@@ -1,0 +1,129 @@
+# Made by Xuan 4/23/2019, this file works up to d spin orbital.
+# The input files are DOSCAR and POSCAR, output will be several files contains LDOS
+import sys
+import re
+import math
+import numpy as np
+
+try:
+    doscar = open("DOSCAR", "r",)
+    poscar = open("POSCAR", "r",)
+except IOError:
+    sys.exit("Could not open")
+
+
+info5=doscar.readline()  # Skip line
+(Nion1, Nion2, NpDOS,NpDOS2) =info5.split() #Number of Ions (including empty spheres), Number of Ions, 0 (no partial DOS) or 1 (incl. partial DOS), NCDIJ (currently not used)
+doscar.readline()  # N/A
+doscar.readline()  # N/A
+doscar.readline()  # N/A
+doscar.readline()  # N/A
+info1=doscar.readline()  # N/A
+(Emax, Emin, NEDOS, Efermi, one) = info1.split()
+#print(Efermi)
+
+# Get information from POSCAR
+poscar.readline()  # Skip line
+poscar.readline()  # Skip line
+poscar.readline()  # Skip line
+poscar.readline()  # Skip line
+poscar.readline()  # Skip line
+
+info2=poscar.readline()  # Element information
+info3=info2.split() # Element information
+info4=poscar.readline() # Element numbers
+info6=info4.split() # Element numbers
+
+numelement=len(info3)  # Numbers of different element
+first=info3[0] #check the element?
+elename={} #empty dict for elements names
+elenum={} # empty dict for numbers of each elements
+eleorb={} # empty dict for s p d
+#diction orbital
+orbital=['s','p','d']
+
+
+# Separate each element and numbers of them, create a dictionary for future
+for x in range(int(numelement)):
+    elename["ele{0}".format(x)]=info3[x]
+for x5 in range(int(numelement)):
+    elenum["ele{0}".format(x5)]=info6[x5]
+for x16 in range (len(orbital)):
+    eleorb["ele{0}".format(x16)]=orbital[x16]
+
+
+
+
+for x2 in range(int(NEDOS)+1): #skip the DOS(up) DOS(dwn)  integrated DOS(up) integrated DOS(dwn) part
+    doscar.readline()
+
+#creating empty matrix for each element, full for all the DOS data and sum is after summation
+Lfull=[]
+Lsum=[]
+Lfinal=[]
+x9=0
+for x5 in range(int(numelement)): #4element
+    for x6 in range(int(elenum["ele{0}".format(x5)])): # 4 4 16 1
+        Lfull.append(np.zeros((int(NEDOS), 19)))  #25 full arrays and 25 sum arrays [[Ele1],[Ele2]...] [Ele1]=matrix
+        Lsum.append((np.zeros((int(NEDOS), 2))))
+        for x7 in range(int(NEDOS)): # do 901 line by line find information
+            line1 = doscar.readline().split()
+            for x8 in range(len(line1)):   #19 components
+                Lfull[x9][x7, x8] = float(line1[x8])   #x9 Mn1 Mn2... X7 energy, x8 different value at x7 energy
+            Lsum[x9][x7, 0] = Lfull[x9][x7, 0]
+            Lsum[x9][x7, 1] = np.sum(Lfull[x9][x7]) - Lfull[x9][x7, 0]
+        x9+=1
+        doscar.readline()
+
+
+# create a list [SumEle1, SumEle2....] Ele1=[E s p d.....]
+Lele=[]
+x25=0 #index for summation
+for x5 in range(int(numelement)): #4element
+    Lele.append((np.zeros((int(NEDOS),19)))) # 4 submatrices
+    for x6 in range(int(elenum["ele{0}".format(x5)])): # 4 4 16 1
+        Lele[x5]=Lele[x5]+Lfull[x25] #sum all the matrix for each element
+        x25+=1
+    Lele[x5][:,0]=Lfull[0][:,0] # first column correction
+
+# ######################################################### for checking the answer only
+# with open('Mn_all.txt','wb') as file:
+#     np.savetxt(file,Lele[0], fmt='%.6f')
+# with open('O_all.txt','wb') as file:
+#     np.savetxt(file,Lele[1], fmt='%.6f')
+# #########################################################
+
+spin=["up","down"]
+porbital=["_py_","_pz_","_px_"]
+dorbital=['_dxy_','_dyz_','_z2-r2_','_dxz_','_dx2-y2_']
+label=np.arange(len(info3)*18+1) #creat a label list
+
+
+
+
+xuan=0 # index for numbering each file
+
+#creat files for each elements   x1:element x18, x20 spin
+for x1 in range(int(len(info3))):  # number of element
+    for x18 in range(2): #spin up or down
+        xuan=xuan+1
+        with open(str(label[xuan])+info3[x1]+'_s_'+spin[x18]+".txt",'wb') as file:
+            np.savetxt(file,Lele[x1][:,(0,1+x18)],fmt='%.6f')
+
+    x23 = 0  # index to locate PDOS
+    for x19 in range(int(len(porbital))): # p orbital
+        for x20 in range(2): #spin up or down
+            xuan=xuan+1
+            print(x23)
+            with open(str(label[xuan])+info3[x1] + porbital[x19] + spin[x20] + ".txt", 'wb') as file:
+                np.savetxt(file, Lele[x1][:, (0, 3+x23)], fmt='%.6f')
+            x23+=1
+
+    x24 = 0
+    for x21 in range(int(len(dorbital))): # d orbital
+        for x22 in range(2): #spin up or down
+            xuan = xuan+ 1
+            print(x24)
+            with open(str(label[xuan])+info3[x1] + dorbital[x21] + spin[x22] + ".txt", 'wb') as file:
+                np.savetxt(file, Lele[x1][:, (0,9+x24)], fmt='%.6f')
+            x24+=1
