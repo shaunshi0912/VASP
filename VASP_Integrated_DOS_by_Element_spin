@@ -1,0 +1,95 @@
+# Made by Xuan 2/3/2019, this file works up to d spin orbital.
+# The input files are DOSCAR and POSCAR, output will be several files contains integrated DOS
+import sys
+import re
+import math
+import numpy as np
+
+try:
+    doscar = open("DOSCAR", "r",)
+    poscar = open("POSCAR", "r",)
+except IOError:
+    sys.exit("Could not open")
+
+
+info5=doscar.readline()  # Skip line
+(Nion1, Nion2, NpDOS,NpDOS2) =info5.split()
+doscar.readline()  # N/A
+doscar.readline()  # N/A
+doscar.readline()  # N/A
+doscar.readline()  # N/A
+info1=doscar.readline()  # N/A
+(Emax, Emin, NEDOS, Efermi, one) = info1.split()
+#print(Efermi)
+
+
+poscar.readline()  # Skip line
+poscar.readline()  # Skip line
+poscar.readline()  # Skip line
+poscar.readline()  # Skip line
+poscar.readline()  # Skip line
+
+info2=poscar.readline()  # Skip line
+info3=info2.split()
+info4=poscar.readline()
+info6=info4.split()
+
+numelement=len(info3)
+first=info3[0]
+elename={}
+elenum={}
+
+
+
+# Separate each element and numbers of them, creat a dictionary for future
+for x in range(int(numelement)):
+    elename["ele{0}".format(x)]=info3[x]
+for x5 in range(int(numelement)):
+    elenum["ele{0}".format(x5)]=info6[x5]
+
+for x2 in range(int(NEDOS)+1):
+    doscar.readline()
+
+#creating empty matrix for each element, full for all the DOS data and sum is after summation
+Lfull=[]
+Lsum=[]
+Lfinal=[]
+x9=0
+for x5 in range(int(numelement)): #4element
+    for x6 in range(int(elenum["ele{0}".format(x5)])): # 4 4 16 1
+        Lfull.append(np.zeros((int(NEDOS), 19)))  #25 full arrays and 25 sum arrays
+        Lsum.append((np.zeros((int(NEDOS), 2))))
+        for x7 in range(int(NEDOS)): # do 901 line by line find information
+            line1 = doscar.readline().split()
+            for x8 in range(len(line1)):
+                Lfull[x9][x7, x8] = float(line1[x8])
+            Lsum[x9][x7, 0] = Lfull[x9][x7, 0]
+            Lsum[x9][x7, 1] = np.sum(Lfull[x9][x7]) - Lfull[x9][x7, 0]
+        x9+=1
+        doscar.readline()
+
+# creat a list contain all the info, x energy y integrated DOS
+x12=0
+for x10 in range(int(numelement)): # element 4
+    Lfinal.append((np.zeros((int(NEDOS), 2))))
+    for x11 in range(int(elenum["ele{0}".format(x10)])): # 4 4 16 1
+        Lfinal[x10]=Lfinal[x10]+Lsum[x12]
+        x12+=1
+
+#fix the x axis value
+for x13 in range(int(numelement)): # element 4
+    for x14 in range(int(NEDOS)):  # do 901 line by line find information
+        Lfinal[x13][x14,0]=Lsum[0][x14,0]-float(Efermi)
+
+
+
+x15=0
+#creat files for each elements
+for x1 in elename:
+    with open(elename[x1]+".txt",'wb') as file:
+        np.savetxt(file, Lfinal[x15], fmt='%.6f')
+        x15+=1
+
+# print(elename)
+
+
