@@ -1,0 +1,108 @@
+# Xuan Modify based on Ryan Valenza's script https://github.com/ryval/VASP/blob/master/readEIGENVAL.py
+# Input is EIGENVAL and output will be bandsup and bandsdown
+
+import sys
+import re
+import math
+import numpy as np
+
+
+try:
+    eigenval = open("EIGENVAL", "r")
+    outcar = open("OUTCAR", "r")
+except IOError:
+    sys.exit("Could not open EIGENVAL")
+
+eigenval.readline()  # Skip line
+eigenval.readline()  # N/A
+eigenval.readline()  # N/A
+eigenval.readline()  # Cartesian/Direct
+
+# System name w/ stripped newline character
+name = eigenval.readline().rstrip()
+# print("System:        " + name)
+
+first = eigenval.readline()  # Possibly interesting information
+(nelect, nkpts, nbands) = first.split()
+
+#Regular expressions are used to distinguish between a k-point, eigenvalue and fermi energy
+regexs = {'kpt': "\s+(.\d+\.\d+E[+-]\d+)\s+(.\d+\.\d+E[+-]\d+)\s+(.\d+\.\d+E[+-]\d+)\s+",
+          'enval': "\s+(\d+)\s+(-?.\d+\.\d+)\s+(-?.\d+\.\d+)",
+          'fermi': "\s+E-fermi\s\:\s+(\d+\.\d+)"}
+
+#get the fermi energy from outcar
+for line in outcar:
+    E = re.match(regexs['fermi'], line)
+    if E!= None:
+        Ef=E.group(1)
+
+kpts = []
+bandsup = []
+bandsdown = []
+point = []
+kp=[]
+kp.append([0,0,0])# give the first line 0 0 0
+k=0
+
+for i in range(int(nbands)):
+     bandsup.append([])
+j = 0  # mark band number
+
+for ii in range(int(nbands)):
+     bandsdown.append([])
+jj = 0  # mark band number
+j1=0
+
+
+for line in eigenval:
+    kpt = re.match(regexs['kpt'], line)
+    enval = re.match(regexs['enval'], line)
+    # print(enval)
+    if kpt != None:
+        (kx, ky, kz) = kpt.groups(0)
+        kp.append([kx,ky,kz])
+
+
+    if enval != None:
+        e = float(enval.groups(0)[1])
+        bandsup[j % int(nbands)].append([e])
+        j += 1
+
+    if enval != None:
+        ee = float(enval.groups(0)[2])
+        bandsdown[jj % int(nbands)].append([ee])
+        jj += 1
+
+
+for i1 in range(int(nkpts)):
+    dk=math.sqrt((float(kp[i1+1][0])-float(kp[i1][0]))**2+(float(kp[i1+1][1])-float(kp[i1][1]))**2+(float(kp[i1+1][2])-float(kp[i1][2]))**2)
+    k=k+dk
+    point.append(k)
+
+
+#creat 2 matrices
+up=np.zeros((int(nkpts),int(nbands)+1))
+down=np.zeros((int(nkpts),int(nbands)+1))
+
+#Convert list to array and correct Ef
+uparray=np.array(bandsup)-float(Ef)
+downarray=np.array(bandsdown)-float(Ef)
+
+
+[up[:,0]]=[point]
+[down[:,0]]=[point]
+
+
+for i in range(int(nbands)):
+    [up[:, i+1]]=np.transpose(uparray[i])
+
+for ii in range(int(nbands)):
+    [down[:, ii+1]]=np.transpose(downarray[ii])
+
+with open('bandsup.txt','wb') as f_up:
+    np.savetxt(f_up,up,fmt='%.6f')
+
+with open('bandsdown.txt','wb') as f_down:
+    np.savetxt(f_down,down,fmt='%.6f')
+
+
